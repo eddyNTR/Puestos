@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Color de fondo del SplashScreen (mismo que en splash_screen.dart) -->
+    <color name="launch_bg">#181A20</color>
+    <!-- Color de fondo del icono adaptivo -->
+    <color name="ic_launcher_background">#181A20</color>
+</resources>

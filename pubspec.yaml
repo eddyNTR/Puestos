@@ -73,6 +73,7 @@ flutter:
   assets:
     - .env
     - .env.example
+    - assets/icon/emsa.png
 
 flutter_launcher_icons:
   android: true

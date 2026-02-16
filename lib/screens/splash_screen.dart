@@ -67,7 +67,7 @@ class _SplashScreenState extends State<SplashScreen>
                   height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(0xFFFF9800).withOpacity(0.1),
+                    color: const Color(0xFF181A20),
                     border: Border.all(
                       color: const Color(0xFFFF9800),
                       width: 2,
@@ -118,51 +118,12 @@ class _SplashScreenState extends State<SplashScreen>
               child: SizedBox(
                 width: 50,
                 height: 50,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    // Círculo de fondo
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFF388E3C).withOpacity(0.3),
-                          width: 3,
-                        ),
-                      ),
-                    ),
-                    // Indicador giratorio
-                    RotationTransition(
-                      turns: _animationController,
-                      child: Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border(
-                            top: BorderSide(
-                              color: const Color(0xFFFF9800),
-                              width: 3,
-                            ),
-                            right: BorderSide(
-                              color: const Color(0xFF388E3C),
-                              width: 3,
-                            ),
-                            bottom: BorderSide(
-                              color: Colors.transparent,
-                              width: 3,
-                            ),
-                            left: BorderSide(
-                              color: Colors.transparent,
-                              width: 3,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    const Color(0xFFFF9800),
+                  ),
+                  backgroundColor: const Color(0xFF181A20),
+                  strokeWidth: 3,
                 ),
               ),
             ),

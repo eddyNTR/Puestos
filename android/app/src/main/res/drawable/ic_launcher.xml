@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Mismo color que splash_screen.dart (#181A20) -->
-    <item android:drawable="@color/launch_bg"/>
+    <!-- Para SDK < 26: icono simple color oscuro -->
+    <item android:drawable="@color/ic_launcher_background"/>
 </layer-list>

@@ -1,9 +1,45 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'firebase_options.dart';
 import 'config/app_config.dart';
+import 'services/firebase_service.dart';
+import 'services/sync_manager.dart';
 import 'screens/puestos_screen.dart';
+import 'screens/splash_screen.dart';
 
 void main() async {
-  await AppConfig.load();
+  WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await AppConfig.load();
+    print('✓ AppConfig cargado');
+  } catch (e) {
+    print('⚠ Error cargando AppConfig: $e');
+  }
+
+  try {
+    print('🔄 Inicializando Firebase...');
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('✓✓✓ Firebase inicializado correctamente');
+
+    // Verificar que Firestore está disponible
+    final firestore = FirebaseFirestore.instance;
+    print('✓✓✓ Firestore instance obtenida: $firestore');
+
+    FirebaseService().initialize();
+    print('✓ FirebaseService inicializado');
+
+    SyncManager().initialize();
+    print('✓ SyncManager inicializado');
+    print('✓✓✓ ¡LISTO PARA SINCRONIZAR DATOS!');
+  } catch (e) {
+    print('❌ Error inicializando Firebase: $e');
+    print('Stacktrace: $e');
+  }
+
   runApp(const MyApp());
 }
 
@@ -79,7 +115,8 @@ class MyApp extends StatelessWidget {
         ),
         cardColor: Color(0xFF23272F),
       ),
-      home: const PuestosScreen(),
+      home: const SplashScreen(),
+      routes: {'/home': (context) => const PuestosScreen()},
     );
   }
 }

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "489864115645",
+    "project_id": "horarios-emsa",
+    "storage_bucket": "horarios-emsa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:489864115645:android:f6c4a723b2065502624ed4",
+        "android_client_info": {
+          "package_name": "com.example.horarios_emsa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "PASTE_YOUR_ACTUAL_KEY_HERE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

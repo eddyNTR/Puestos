@@ -17,6 +17,7 @@ credentials.json
 # Google Services (Android & iOS)
 google-services.json
 GoogleService-Info.plist
+Firebase.json
 
 # Claves de API en texto plano
 *api-keys*
@@ -24,6 +25,8 @@ GoogleService-Info.plist
 *.keys
 *.key
 keys.json
+**/api_keys.json
+**/secrets/**
 
 # Archivos de firma de Android
 *.jks

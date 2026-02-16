@@ -124,119 +124,138 @@ class _PuestoFormState extends State<PuestoForm> {
                 ),
               ),
               const SizedBox(height: 16),
-              ...widget.direccionControllers.entries.map(
-                (entry) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child:
-                            entry.value.text.isNotEmpty &&
-                                localCoords[entry.key] != null
-                            ? GestureDetector(
-                                onTap: () {
-                                  // Mostrar TextField al hacer tap
-                                  final tempController = TextEditingController(
-                                    text: entry.value.text,
-                                  );
-                                  showDialog(
-                                    context: context,
-                                    builder: (ctx) => AlertDialog(
-                                      title: Text('${entry.key} - Dirección'),
-                                      content: TextField(
-                                        controller: tempController,
+              ...widget.direccionControllers.entries
+                  .map(
+                    (entry) => Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Campo de dirección + botón de mapa en la misma fila
+                          Row(
+                            children: [
+                              Expanded(
+                                child:
+                                    entry.value.text.isNotEmpty &&
+                                        localCoords[entry.key] != null
+                                    ? GestureDetector(
+                                        onTap: () {
+                                          // Mostrar TextField al hacer tap
+                                          final tempController =
+                                              TextEditingController(
+                                                text: entry.value.text,
+                                              );
+                                          showDialog(
+                                            context: context,
+                                            builder: (ctx) => AlertDialog(
+                                              title: Text(
+                                                '${entry.key} - Dirección',
+                                              ),
+                                              content: TextField(
+                                                controller: tempController,
+                                                decoration: InputDecoration(
+                                                  hintText: 'Editar dirección',
+                                                  border: OutlineInputBorder(),
+                                                ),
+                                                maxLines: null,
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(ctx),
+                                                  child: const Text('Cancelar'),
+                                                ),
+                                                ElevatedButton(
+                                                  onPressed: () {
+                                                    // Actualizar el controller original con los cambios
+                                                    entry.value.text =
+                                                        tempController.text;
+                                                    setState(() {
+                                                      // Forzar reconstrucción
+                                                    });
+                                                    Navigator.pop(ctx);
+                                                  },
+                                                  child: const Text('Guardar'),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: const Color(0xFFFF9800),
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
+                                          ),
+                                          child: AnimatedAddressText(
+                                            key: ValueKey(
+                                              '${entry.key}_${entry.value.text}',
+                                            ),
+                                            address:
+                                                '${entry.key}: ${entry.value.text}',
+                                            style: const TextStyle(
+                                              color: Color(0xFFF8D082),
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : TextField(
+                                        controller: entry.value,
+                                        style: const TextStyle(
+                                          color: Color(0xFFF8D082),
+                                        ),
                                         decoration: InputDecoration(
-                                          hintText: 'Editar dirección',
-                                          border: OutlineInputBorder(),
+                                          labelText: '${entry.key} (Dirección)',
+                                          prefixIcon: const Icon(
+                                            Icons.location_on,
+                                            color: Color(0xFFF8D082),
+                                          ),
                                         ),
-                                        maxLines: null,
                                       ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () => Navigator.pop(ctx),
-                                          child: const Text('Cancelar'),
-                                        ),
-                                        ElevatedButton(
-                                          onPressed: () {
-                                            // Actualizar el controller original con los cambios
-                                            entry.value.text =
-                                                tempController.text;
-                                            setState(() {
-                                              // Forzar reconstrucción
-                                            });
-                                            Navigator.pop(ctx);
-                                          },
-                                          child: const Text('Guardar'),
-                                        ),
-                                      ],
+                              ),
+                              // Botón de mapa pequeño al lado
+                              IconButton(
+                                icon: Icon(
+                                  localCoords[entry.key] != null
+                                      ? Icons.map
+                                      : Icons.map_outlined,
+                                  color: const Color(0xFFFF9800),
+                                  size: 24,
+                                ),
+                                tooltip: 'Seleccionar en mapa',
+                                onPressed: () async {
+                                  final result = await Navigator.push<LatLng?>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => MapPickerScreen(
+                                        initialPosition: localCoords[entry.key],
+                                      ),
                                     ),
                                   );
+                                  if (result != null) {
+                                    setState(() {
+                                      localCoords[entry.key] = result;
+                                    });
+                                    await _setDireccionFromCoords(
+                                      entry.key,
+                                      result,
+                                    );
+                                  }
                                 },
-                                child: Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    border: Border.all(
-                                      color: const Color(0xFFFF9800),
-                                    ),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: AnimatedAddressText(
-                                    key: ValueKey(
-                                      '${entry.key}_${entry.value.text}',
-                                    ),
-                                    address:
-                                        '${entry.key}: ${entry.value.text}',
-                                    style: const TextStyle(
-                                      color: Color(0xFFF8D082),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            : TextField(
-                                controller: entry.value,
-                                style: const TextStyle(
-                                  color: Color(0xFFF8D082),
-                                ),
-                                decoration: InputDecoration(
-                                  labelText: '${entry.key} (Dirección)',
-                                  prefixIcon: const Icon(
-                                    Icons.location_on,
-                                    color: Color(0xFFF8D082),
-                                  ),
-                                ),
                               ),
+                            ],
+                          ),
+                        ],
                       ),
-                      IconButton(
-                        icon: Icon(
-                          localCoords[entry.key] != null
-                              ? Icons.map
-                              : Icons.map_outlined,
-                          color: const Color(0xFFFF9800),
-                        ),
-                        tooltip: 'Seleccionar en mapa',
-                        onPressed: () async {
-                          final result = await Navigator.push<LatLng?>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => MapPickerScreen(
-                                initialPosition: localCoords[entry.key],
-                              ),
-                            ),
-                          );
-                          if (result != null) {
-                            setState(() {
-                              localCoords[entry.key] = result;
-                            });
-                            await _setDireccionFromCoords(entry.key, result);
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+                    ),
+                  )
+                  .toList(),
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: () => widget.onSave(localCoords),

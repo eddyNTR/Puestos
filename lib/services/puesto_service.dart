@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/puesto.dart';
+import 'sync_manager.dart';
 
 class PuestoService {
   static Database? _db;
@@ -33,6 +34,20 @@ class PuestoService {
     final db = await database;
     final map = puesto.toMapForInsert();
     final id = await db.insert('puestos', map);
+
+    // Sincronizar a Firebase en background
+    final puestoConId = Puesto(
+      id: id,
+      nombre: puesto.nombre,
+      dias: puesto.dias,
+    );
+
+    // Sincronizar con pequeño delay para asegurar que Firebase esté listo
+    Future.delayed(const Duration(milliseconds: 500), () {
+      SyncManager().syncPuestoToFirebase(puestoConId);
+      print('✓ Iniciando sincronización para puesto: $id');
+    });
+
     return id;
   }
 
@@ -50,16 +65,32 @@ class PuestoService {
 
   static Future<int> updatePuesto(Puesto puesto) async {
     final db = await database;
-    return await db.update(
+    final result = await db.update(
       'puestos',
       puesto.toMapForUpdate(),
       where: 'id = ?',
       whereArgs: [puesto.id],
     );
+
+    // Sincronizar a Firebase en background
+    SyncManager().syncPuestoToFirebase(puesto);
+
+    return result;
   }
 
   static Future<int> deletePuesto(int id) async {
     final db = await database;
-    return await db.delete('puestos', where: 'id = ?', whereArgs: [id]);
+    final result = await db.delete('puestos', where: 'id = ?', whereArgs: [id]);
+
+    // Eliminar de Firebase en background
+    SyncManager().deletePuestoFromFirebase(id);
+
+    return result;
+  }
+
+  /// Sincroniza todos los puestos locales a Firebase
+  static Future<bool> syncAllToFirebase() async {
+    final puestos = await getPuestos();
+    return await SyncManager().syncAllLocalToFirebase(puestos);
   }
 }

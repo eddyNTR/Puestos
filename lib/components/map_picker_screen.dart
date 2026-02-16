@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-import 'animated_address_text.dart';
 
 class MapPickerScreen extends StatefulWidget {
   final LatLng? initialPosition;
@@ -169,95 +168,174 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                   },
                 ),
                 Positioned(
-                  top: 16,
-                  left: 16,
-                  right: 16,
-                  height: 56,
-                  child: Material(
-                    elevation: 2,
-                    borderRadius: BorderRadius.circular(8),
-                    child: TextField(
-                      controller: _searchController,
-                      maxLines: 1,
-                      decoration: InputDecoration(
-                        hintText: 'Buscar dirección...',
-                        prefixIcon: Icon(Icons.search),
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
+                  top: 12,
+                  left: 12,
+                  right: 12,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF212121).withOpacity(0.95),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      onSubmitted: (value) async {
-                        if (value.isNotEmpty) {
-                          try {
-                            final locations = await locationFromAddress(value);
-                            if (locations.isNotEmpty) {
-                              final loc = locations.first;
-                              final newPosition = LatLng(
-                                loc.latitude,
-                                loc.longitude,
-                              );
-                              setState(() {
-                                selectedPosition = newPosition;
-                              });
-                              if (_mapController != null) {
-                                _mapController!.animateCamera(
-                                  CameraUpdate.newLatLng(newPosition),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              maxLines: 1,
+                              textAlign: TextAlign.center,
+                              textAlignVertical: TextAlignVertical.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                              ),
+                              decoration: InputDecoration(
+                                filled: true,
+                                fillColor: const Color(
+                                  0xFF212121,
+                                ).withOpacity(0.95),
+                                hintText: 'Buscar dirección...',
+                                hintStyle: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                                prefixIcon: const Icon(
+                                  Icons.search,
+                                  color: Colors.white70,
+                                  size: 20,
+                                ),
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                              ),
+                              onSubmitted: (value) async {
+                                if (value.isNotEmpty) {
+                                  try {
+                                    final locations = await locationFromAddress(
+                                      value,
+                                    );
+                                    if (locations.isNotEmpty) {
+                                      final loc = locations.first;
+                                      final newPosition = LatLng(
+                                        loc.latitude,
+                                        loc.longitude,
+                                      );
+                                      setState(() {
+                                        selectedPosition = newPosition;
+                                      });
+                                      if (_mapController != null) {
+                                        _mapController!.animateCamera(
+                                          CameraUpdate.newLatLng(newPosition),
+                                        );
+                                      }
+                                      _updateAddress(newPosition);
+                                    }
+                                  } catch (_) {
+                                    // Error en búsqueda de dirección
+                                  }
+                                }
+                              },
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.my_location,
+                              color: Colors.blueAccent,
+                              size: 20,
+                            ),
+                            iconSize: 24,
+                            padding: const EdgeInsets.all(6),
+                            tooltip: 'Ir a mi ubicación',
+                            onPressed: () async {
+                              try {
+                                final position =
+                                    await Geolocator.getCurrentPosition(
+                                      desiredAccuracy: LocationAccuracy.high,
+                                    );
+                                final myLocation = LatLng(
+                                  position.latitude,
+                                  position.longitude,
                                 );
-                              }
-                              _updateAddress(newPosition);
-                            }
-                          } catch (_) {
-                            // Error en búsqueda de dirección
-                          }
-                        }
-                      },
+                                setState(() {
+                                  selectedPosition = myLocation;
+                                });
+                                if (_mapController != null) {
+                                  _mapController!.animateCamera(
+                                    CameraUpdate.newLatLng(myLocation),
+                                  );
+                                }
+                                _updateAddress(myLocation);
+                              } catch (_) {}
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-                if (selectedAddress != null)
-                  Positioned(
-                    bottom: 16,
-                    left: 16,
-                    right: 16,
-                    child: Material(
-                      elevation: 2,
-                      borderRadius: BorderRadius.circular(8),
-                      color: Colors.white,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: AnimatedAddressText(
-                                address: selectedAddress!,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.green[700],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 12),
-                            ElevatedButton(
-                              onPressed: () {
-                                Navigator.pop(context, selectedPosition);
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green[700],
-                                shape: CircleBorder(),
-                                padding: EdgeInsets.all(12),
-                              ),
-                              child: Icon(Icons.check, color: Colors.white),
-                            ),
-                          ],
+                // Mostrar dirección seleccionada al lado del botón
+                Positioned(
+                  bottom: 24,
+                  left: 16,
+                  right: 80,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF212121).withOpacity(0.95),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(10),
+                    child: Text(
+                      selectedAddress ?? 'Cargando dirección...',
+                      style: const TextStyle(
+                        color: Color(0xFFF8D082),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                ),
               ],
             ),
+      floatingActionButton: selectedPosition != null
+          ? FloatingActionButton.small(
+              onPressed: () {
+                Navigator.pop(context, selectedPosition);
+              },
+              backgroundColor: const Color(0xFFFF9800),
+              elevation: 6,
+              child: const Icon(
+                Icons.check,
+                color: Color(0xFF212121),
+                size: 18,
+              ),
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }

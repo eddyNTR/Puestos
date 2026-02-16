@@ -51,6 +51,22 @@ class PuestoService {
     return id;
   }
 
+  /// Inserta un puesto con ID específico (utilizado en sincronización desde Firebase)
+  static Future<int> insertPuestoWithId(Puesto puesto) async {
+    final db = await database;
+
+    try {
+      await db.insert('puestos', puesto.toMap());
+      print(
+        '✓ [SYNC] Puesto ${puesto.id} insertado desde Firebase al SQLite local',
+      );
+      return puesto.id ?? -1;
+    } catch (e) {
+      print('⚠️ [SYNC] Error insertando puesto ${puesto.id}: $e');
+      return -1;
+    }
+  }
+
   static Future<List<Puesto>> getPuestos() async {
     final db = await database;
     final maps = await db.query('puestos');
@@ -62,6 +78,9 @@ class PuestoService {
       return [];
     }
   }
+
+  /// Alias para getPuestos (utilizado en sincronización)
+  static Future<List<Puesto>> getAllPuestos() => getPuestos();
 
   static Future<int> updatePuesto(Puesto puesto) async {
     final db = await database;

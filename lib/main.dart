@@ -34,6 +34,12 @@ void main() async {
 
     SyncManager().initialize();
     print('✓ SyncManager inicializado');
+
+    // ⬇️ SINCRONIZAR DATOS DE FIREBASE A SQLite LOCAL
+    print('⬇️ Sincronizando puestos de Firebase a dispositivo...');
+    await SyncManager().syncFirebaseToLocal();
+    print('✓ Sincronización Firebase→SQLite completada');
+
     print('✓✓✓ ¡LISTO PARA SINCRONIZAR DATOS!');
   } catch (e) {
     print('❌ Error inicializando Firebase: $e');

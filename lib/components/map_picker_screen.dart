@@ -291,9 +291,9 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                 ),
                 // Mostrar dirección seleccionada al lado del botón
                 Positioned(
-                  bottom: 24,
+                  bottom: 80,
                   left: 16,
-                  right: 80,
+                  right: 16,
                   child: Container(
                     decoration: BoxDecoration(
                       color: const Color(0xFF212121).withOpacity(0.95),
@@ -319,23 +319,26 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
                     ),
                   ),
                 ),
+                // Botón flotante de confirmación
+                if (selectedPosition != null)
+                  Positioned(
+                    bottom: 24,
+                    left: 16,
+                    child: FloatingActionButton.small(
+                      onPressed: () {
+                        Navigator.pop(context, selectedPosition);
+                      },
+                      backgroundColor: const Color(0xFFFF9800),
+                      elevation: 6,
+                      child: const Icon(
+                        Icons.check,
+                        color: Color(0xFF212121),
+                        size: 18,
+                      ),
+                    ),
+                  ),
               ],
             ),
-      floatingActionButton: selectedPosition != null
-          ? FloatingActionButton.small(
-              onPressed: () {
-                Navigator.pop(context, selectedPosition);
-              },
-              backgroundColor: const Color(0xFFFF9800),
-              elevation: 6,
-              child: const Icon(
-                Icons.check,
-                color: Color(0xFF212121),
-                size: 18,
-              ),
-            )
-          : null,
-      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
 }

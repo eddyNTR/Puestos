@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
+import '../constants/colors.dart';
+import '../services/splash_controller.dart';
+import '../components/splash_logo.dart';
+import '../components/splash_text.dart';
+import '../components/splash_loader.dart';
 import 'puestos_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -11,136 +15,53 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _scaleAnimation;
+  late SplashController _splashController;
 
   @override
   void initState() {
     super.initState();
+    _splashController = SplashController();
+    _splashController.initialize(this);
 
-    // Configurar animaciones
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
-      vsync: this,
+    // Navega a home después de 3 segundos
+    _splashController.scheduleNavigation(
+      delay: const Duration(seconds: 3),
+      onNavigate: _navigateToHome,
     );
+  }
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
-    );
-
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack),
-    );
-
-    _animationController.forward();
-
-    // Navegar después de 3 segundos
-    Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/home');
-      }
-    });
+  // Navega a pantalla principal
+  Future<void> _navigateToHome() async {
+    if (mounted) {
+      Navigator.of(context).pushReplacementNamed('/home');
+    }
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _splashController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF181A20),
+      backgroundColor: AppColors.bgDark,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo con animación
-            ScaleTransition(
-              scale: _scaleAnimation,
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF181A20),
-                    border: Border.all(
-                      color: const Color(0xFFFF9800),
-                      width: 2,
-                    ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Image.asset(
-                      'assets/icon/emsa.png',
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ),
+            // Logo animado
+            SplashLogo(
+              scaleAnimation: _splashController.scaleAnimation,
+              fadeAnimation: _splashController.fadeAnimation,
             ),
             const SizedBox(height: 40),
-            // Texto de la app
-            FadeTransition(
-              opacity: _fadeAnimation,
-              child: Column(
-                children: [
-                  const Text(
-                    'EMSA',
-                    style: TextStyle(
-                      color: Color(0xFFFF9800),
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Gestión de Puestos',
-                    style: TextStyle(
-                      color: Color(0xFFF8D082),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            // Textos de bienvenida
+            SplashText(fadeAnimation: _splashController.fadeAnimation),
             const SizedBox(height: 60),
-            // Loading indicator personalizado
-            FadeTransition(
-              opacity: _fadeAnimation,
-              child: SizedBox(
-                width: 50,
-                height: 50,
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    const Color(0xFFFF9800),
-                  ),
-                  backgroundColor: const Color(0xFF181A20),
-                  strokeWidth: 3,
-                ),
-              ),
-            ),
-            const SizedBox(height: 40),
-            // Texto de carga
-            FadeTransition(
-              opacity: _fadeAnimation,
-              child: const Text(
-                'Iniciando...',
-                style: TextStyle(
-                  color: Color(0xFFF8D082),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 1.5,
-                ),
-              ),
-            ),
+            // Loading indicator
+            SplashLoader(fadeAnimation: _splashController.fadeAnimation),
           ],
         ),
       ),

@@ -1,15 +1,19 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:async';
 import '../models/puesto.dart';
 import 'firebase_service.dart';
-import 'puesto_service.dart';
+import 'sync_strategy.dart';
+import 'batch_sync_service.dart';
+import 'firebase_sync_reader.dart';
+import 'retry_manager.dart';
 
+/// Orquestador centralizado de todas las operaciones de sincronización
+/// Delega a servicios especializados siguiendo Facade pattern
 class SyncManager {
   static final SyncManager _instance = SyncManager._internal();
 
-  // Control de reintentos
-  final Map<int, Timer?> _retryTimers = {};
-  final Set<int> _syncingPuestos = {};
+  final _syncStrategy = SyncStrategy();
+  final _batchSyncService = BatchSyncService();
+  final _firebaseSyncReader = FirebaseSyncReader();
+  final _retryManager = RetryManager();
 
   factory SyncManager() {
     return _instance;
@@ -18,220 +22,51 @@ class SyncManager {
   SyncManager._internal();
 
   void initialize() {
-    // Inicialización completada
-  }
-
-  /// Cancela timer de reintento si existe
-  void _cancelRetryTimer(int puestoId) {
-    _retryTimers[puestoId]?.cancel();
-    _retryTimers.remove(puestoId);
+    print('[SYNC] Manager inicializado');
   }
 
   /// Sincroniza un puesto a Firebase con reintentos automáticos
-  Future<void> syncPuestoToFirebase(Puesto puesto) async {
-    // Evitar sincronizaciones duplicadas
-    if (_syncingPuestos.contains(puesto.id)) {
-      return;
-    }
-
-    _syncingPuestos.add(puesto.id!);
-    _cancelRetryTimer(puesto.id!);
-
-    try {
-      print('🔄 [SYNC] Iniciando sincronización de puesto: ${puesto.id}');
-
-      final firestoreId = puesto.id.toString();
-      final firestoreRef = FirebaseFirestore.instance
-          .collection('puestos')
-          .doc(firestoreId);
-
-      print('🔄 [SYNC] Guardando en Firestore: $firestoreId');
-
-      await firestoreRef
-          .set({
-            'nombre': puesto.nombre,
-            'dias': puesto.dias,
-            'localId': puesto.id,
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true))
-          .timeout(
-            const Duration(seconds: 10),
-            onTimeout: () {
-              throw TimeoutException(
-                'Timeout sincronizando puesto ${puesto.id}',
-              );
-            },
-          );
-
-      print('✓ [SYNC] Puesto ${puesto.id} sincronizado correctamente');
-      _syncingPuestos.remove(puesto.id);
-    } catch (e) {
-      print('❌ [SYNC] Error sincronizando puesto ${puesto.id}: $e');
-
-      // Reintentar cada 30 segundos
-      _retryTimers[puesto.id!] = Timer(const Duration(seconds: 30), () {
-        print('🔄 [RETRY] Reintentando puesto ${puesto.id}...');
-        syncPuestoToFirebase(puesto);
-      });
-
-      _syncingPuestos.remove(puesto.id);
-    }
-  }
+  Future<void> syncPuestoToFirebase(Puesto puesto) =>
+      _syncStrategy.syncPuestoToFirebase(puesto);
 
   /// Sincroniza puestos desde Firebase a SQLite local
-  /// Útil para traer datos existentes en la nube al dispositivo
-  Future<void> syncFirebaseToLocal() async {
-    try {
-      print('⬇️ [SYNC] Iniciando descarga de puestos desde Firebase...');
-
-      final firebasePuestos = await getFirebasePuestos();
-
-      if (firebasePuestos.isEmpty) {
-        print('ℹ️ [SYNC] No hay puestos en Firebase para descargar');
-        return;
-      }
-
-      print(
-        '📥 [SYNC] Descargados ${firebasePuestos.length} puestos de Firebase',
-      );
-
-      // Obtener puestos locales para detectar cambios
-      final localPuestos = await PuestoService.getAllPuestos();
-      final localIds = {for (var p in localPuestos) p.id};
-
-      // Guardar/actualizar puestos de Firebase en SQLite
-      for (final firebasePuesto in firebasePuestos) {
-        if (firebasePuesto.id != null) {
-          if (localIds.contains(firebasePuesto.id)) {
-            // Actualizar puesto existente
-            print('🔄 [SYNC] Actualizando puesto ${firebasePuesto.id}...');
-            await PuestoService.updatePuesto(firebasePuesto);
-          } else {
-            // Insertar nuevo puesto
-            print('✨ [SYNC] Insertando nuevo puesto ${firebasePuesto.id}...');
-            await PuestoService.insertPuestoWithId(firebasePuesto);
-          }
-        }
-      }
-
-      print('✓ [SYNC] Sincronización Firebase→SQLite completada');
-    } catch (e) {
-      print('❌ [SYNC] Error sincronizando desde Firebase: $e');
-    }
-  }
+  Future<void> syncFirebaseToLocal() =>
+      _firebaseSyncReader.syncFirebaseToLocal();
 
   /// Elimina un puesto de Firebase con reintentos
-  Future<void> deletePuestoFromFirebase(int localId) async {
-    try {
-      print('🗑️ [SYNC] Eliminando puesto $localId de Firebase');
-      await FirebaseFirestore.instance
-          .collection('puestos')
-          .doc(localId.toString())
-          .delete()
-          .timeout(const Duration(seconds: 10));
+  Future<void> deletePuestoFromFirebase(int localId) =>
+      _syncStrategy.deletePuestoFromFirebase(localId);
 
-      print('✓ [SYNC] Puesto $localId eliminado correctamente');
-      _syncingPuestos.remove(localId);
-    } catch (e) {
-      print('❌ [SYNC] Error eliminando puesto de Firebase: $e');
-
-      // Reintentar eliminación
-      _retryTimers[localId] = Timer(const Duration(seconds: 30), () {
-        print('🔄 [RETRY] Reintentando eliminar puesto $localId...');
-        deletePuestoFromFirebase(localId);
-      });
-    }
-  }
-
-  /// Obtiene puestos de Firebase (para sincronización inversa)
-  Future<List<Puesto>> getFirebasePuestos() async {
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('puestos')
-          .get()
-          .timeout(const Duration(seconds: 10));
-
-      return snapshot.docs.map((doc) {
-        final diasRaw = doc['dias'] ?? {};
-        final diasMap = (diasRaw as Map<String, dynamic>).map(
-          (k, v) => MapEntry(k, Map<String, dynamic>.from(v ?? {})),
-        );
-        return Puesto(
-          id: int.tryParse(doc.id),
-          nombre: doc['nombre'] ?? '',
-          dias: diasMap,
-        );
-      }).toList();
-    } catch (e) {
-      print('❌ [SYNC] Error obteniendo puestos de Firebase: $e');
-      return [];
-    }
-  }
+  /// Obtiene puestos de Firebase
+  Future<List<Puesto>> getFirebasePuestos() =>
+      _firebaseSyncReader.getFirebasePuestos();
 
   /// Sincroniza múltiples puestos (batch)
-  Future<void> syncMultiplePuestosToFirebase(List<Puesto> puestos) async {
-    try {
-      print('🔄 [SYNC] Sincronizando batch de ${puestos.length} puestos...');
-
-      final batch = FirebaseFirestore.instance.batch();
-
-      for (final puesto in puestos) {
-        final firestoreId = puesto.id.toString();
-        final docRef = FirebaseFirestore.instance
-            .collection('puestos')
-            .doc(firestoreId);
-
-        batch.set(docRef, {
-          'nombre': puesto.nombre,
-          'dias': puesto.dias,
-          'localId': puesto.id,
-          'updatedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
-
-      await batch.commit();
-      print('✓ [SYNC] Sincronización de ${puestos.length} puestos completada');
-    } catch (e) {
-      print('❌ [SYNC] Error en sincronización batch: $e');
-    }
-  }
+  Future<void> syncMultiplePuestosToFirebase(List<Puesto> puestos) =>
+      _batchSyncService.syncMultiplePuestosToFirebase(puestos);
 
   /// Sincroniza todos los puestos locales a Firebase
-  Future<bool> syncAllLocalToFirebase(List<Puesto> localPuestos) async {
-    try {
-      print(
-        '🔄 [SYNC] Iniciando sincronización de ${localPuestos.length} puestos...',
-      );
-      await syncMultiplePuestosToFirebase(localPuestos);
-      return true;
-    } catch (e) {
-      print('❌ [SYNC] Error en sincronización general: $e');
-      return false;
-    }
-  }
+  Future<bool> syncAllLocalToFirebase(List<Puesto> localPuestos) =>
+      _batchSyncService.syncAllLocalToFirebase(localPuestos);
 
   /// Guarda un backup completo con toda la estructura
   Future<bool> saveFullBackupToFirebase(List<Puesto> puestos) async {
     try {
       print(
-        '💾 [BACKUP] Guardando backup completo de ${puestos.length} puestos...',
+        '[BACKUP] Guardando backup completo de ${puestos.length} puestos...',
       );
       final firebaseService = FirebaseService();
       await firebaseService.saveCompleteBackup(puestos);
       return true;
     } catch (e) {
-      print('❌ [BACKUP] Error en backup: $e');
+      print('[BACKUP] Error en backup: $e');
       return false;
     }
   }
 
   /// Limpia todos los timers de reintento (útil al cerrar app)
   void dispose() {
-    print('🧹 [SYNC] Limpiando timers de sincronización...');
-    for (final timer in _retryTimers.values) {
-      timer?.cancel();
-    }
-    _retryTimers.clear();
-    _syncingPuestos.clear();
+    _retryManager.disposeAll();
+    _syncStrategy.clearActiveSyncs();
   }
 }

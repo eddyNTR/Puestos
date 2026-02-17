@@ -11,7 +11,7 @@ class AddressDisplay extends StatelessWidget {
     return Positioned(
       bottom: 80,
       left: 16,
-      right: 16,
+      right: 80,
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFF212121).withOpacity(0.95),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:geocoding/geocoding.dart';
+import '../services/location_service.dart';
+import 'map_search_bar.dart';
+import 'address_display.dart';
+import 'confirm_location_button.dart';
 
 class MapPickerScreen extends StatefulWidget {
   final LatLng? initialPosition;
@@ -12,9 +14,12 @@ class MapPickerScreen extends StatefulWidget {
 }
 
 class _MapPickerScreenState extends State<MapPickerScreen> {
-  LatLng? selectedPosition;
+  late LatLng selectedPosition;
   GoogleMapController? _mapController;
   String? selectedAddress;
+  bool _isLoadingAddress = false;
+  bool _isInitializing = true;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -22,323 +27,109 @@ class _MapPickerScreenState extends State<MapPickerScreen> {
     _initializeLocation();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _mapController?.dispose();
+    super.dispose();
+  }
+
   Future<void> _initializeLocation() async {
-    // Si ya hay una posición inicial, usarla
-    if (widget.initialPosition != null) {
-      setState(() {
-        selectedPosition = widget.initialPosition;
-      });
-      return;
-    }
-
-    // Intentar obtener la ubicación actual del usuario
     try {
-      final permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        final result = await Geolocator.requestPermission();
-        if (result == LocationPermission.denied) {
-          // Usar ubicación por defecto si se rechaza el permiso
-          _setDefaultLocation();
-          return;
-        }
+      if (widget.initialPosition != null) {
+        _setPosition(widget.initialPosition!);
+      } else {
+        final location = await LocationService.getCurrentLocation();
+        _setPosition(location);
       }
-
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-
-      setState(() {
-        selectedPosition = LatLng(position.latitude, position.longitude);
-      });
-    } catch (e) {
-      // Si hay error, usar ubicación por defecto
-      _setDefaultLocation();
+    } finally {
+      if (mounted) {
+        setState(() => _isInitializing = false);
+      }
     }
   }
 
-  void _setDefaultLocation() {
-    setState(() {
-      selectedPosition = const LatLng(-16.5, -68.1); // Default: La Paz
-    });
-    _updateAddress(selectedPosition!);
+  void _setPosition(LatLng position) {
+    setState(() => selectedPosition = position);
+    _updateAddress(position);
   }
 
   Future<void> _updateAddress(LatLng position) async {
-    try {
-      if (!mounted) return;
+    setState(() => _isLoadingAddress = true);
+    final address = await LocationService.getAddressFromCoordinates(position);
+    if (mounted) {
+      setState(() {
+        selectedAddress = address;
+        _isLoadingAddress = false;
+      });
+    }
+  }
 
-      final placemarks = await placemarkFromCoordinates(
-        position.latitude,
-        position.longitude,
-      );
+  Future<void> _searchAddress(String query) async {
+    if (query.isEmpty) return;
 
-      if (!mounted) return;
-
-      if (placemarks.isNotEmpty) {
-        final p = placemarks.first;
-        String address = '';
-
-        // Función para validar si el texto NO es solo un código plus
-        bool isValidAddress(String? text) {
-          if (text == null || text.isEmpty) return false;
-          // Rechazar solo si es SOLO código plus (ej: JR9R+55V)
-          final plusPattern = RegExp(r'^[A-Z0-9]{2,4}\+[A-Z0-9]{2,4}$');
-          return !plusPattern.hasMatch(text) && text.length > 2;
-        }
-
-        // Recolectar todas las direcciones válidas disponibles
-        List<String> validAddresses = [];
-
-        if (isValidAddress(p.thoroughfare)) validAddresses.add(p.thoroughfare!);
-        if (isValidAddress(p.street)) validAddresses.add(p.street!);
-        if (isValidAddress(p.name)) validAddresses.add(p.name!);
-        if (isValidAddress(p.subLocality)) validAddresses.add(p.subLocality!);
-        if (isValidAddress(p.locality)) validAddresses.add(p.locality!);
-
-        // Construir la dirección con la mejor combinación
-        if (validAddresses.length >= 2) {
-          address = '${validAddresses[0]} y ${validAddresses[1]}';
-        } else if (validAddresses.length == 1) {
-          address = validAddresses[0];
-        } else {
-          if ((p.thoroughfare ?? '').isNotEmpty) {
-            address = p.thoroughfare!;
-          } else if ((p.street ?? '').isNotEmpty) {
-            address = p.street!;
-          } else if ((p.name ?? '').isNotEmpty) {
-            address = p.name!;
-          } else {
-            address = '${p.locality ?? 'Ubicación'} ${p.postalCode ?? ''}'
-                .trim();
-          }
-        }
-
-        if (mounted) {
-          setState(() {
-            selectedAddress = address;
-          });
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            selectedAddress = 'Dirección no encontrada';
-          });
-        }
+    final location = await LocationService.getLocationFromAddress(query);
+    if (location != null) {
+      _setPosition(location);
+      if (_mapController != null) {
+        _mapController!.animateCamera(CameraUpdate.newLatLng(location));
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          selectedAddress = 'Dirección no encontrada';
-        });
-      }
+    }
+  }
+
+  Future<void> _goToCurrentLocation() async {
+    final location = await LocationService.getCurrentLocation();
+    _setPosition(location);
+    if (_mapController != null) {
+      _mapController!.animateCamera(CameraUpdate.newLatLng(location));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    TextEditingController _searchController = TextEditingController();
     return Scaffold(
       appBar: AppBar(title: const Text('Selecciona ubicación en el mapa')),
-      body: selectedPosition == null
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              children: [
-                GoogleMap(
-                  initialCameraPosition: CameraPosition(
-                    target: selectedPosition!,
-                    zoom: 15,
-                  ),
-                  markers: selectedPosition != null
-                      ? {
-                          Marker(
-                            markerId: const MarkerId('selected'),
-                            position: selectedPosition!,
-                            draggable: true,
-                            onDragEnd: (pos) =>
-                                setState(() => selectedPosition = pos),
-                          ),
-                        }
-                      : {},
-                  onTap: (pos) {
-                    setState(() => selectedPosition = pos);
-                    _updateAddress(pos);
-                  },
-                  onMapCreated: (controller) {
-                    _mapController = controller;
-                  },
-                ),
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  right: 12,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF212121).withOpacity(0.95),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              maxLines: 1,
-                              textAlign: TextAlign.center,
-                              textAlignVertical: TextAlignVertical.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                              ),
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: const Color(
-                                  0xFF212121,
-                                ).withOpacity(0.95),
-                                hintText: 'Buscar dirección...',
-                                hintStyle: const TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                ),
-                                prefixIcon: const Icon(
-                                  Icons.search,
-                                  color: Colors.white70,
-                                  size: 20,
-                                ),
-                                border: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                              ),
-                              onSubmitted: (value) async {
-                                if (value.isNotEmpty) {
-                                  try {
-                                    final locations = await locationFromAddress(
-                                      value,
-                                    );
-                                    if (locations.isNotEmpty) {
-                                      final loc = locations.first;
-                                      final newPosition = LatLng(
-                                        loc.latitude,
-                                        loc.longitude,
-                                      );
-                                      setState(() {
-                                        selectedPosition = newPosition;
-                                      });
-                                      if (_mapController != null) {
-                                        _mapController!.animateCamera(
-                                          CameraUpdate.newLatLng(newPosition),
-                                        );
-                                      }
-                                      _updateAddress(newPosition);
-                                    }
-                                  } catch (_) {
-                                    // Error en búsqueda de dirección
-                                  }
-                                }
-                              },
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.my_location,
-                              color: Colors.blueAccent,
-                              size: 20,
-                            ),
-                            iconSize: 24,
-                            padding: const EdgeInsets.all(6),
-                            tooltip: 'Ir a mi ubicación',
-                            onPressed: () async {
-                              try {
-                                final position =
-                                    await Geolocator.getCurrentPosition(
-                                      desiredAccuracy: LocationAccuracy.high,
-                                    );
-                                final myLocation = LatLng(
-                                  position.latitude,
-                                  position.longitude,
-                                );
-                                setState(() {
-                                  selectedPosition = myLocation;
-                                });
-                                if (_mapController != null) {
-                                  _mapController!.animateCamera(
-                                    CameraUpdate.newLatLng(myLocation),
-                                  );
-                                }
-                                _updateAddress(myLocation);
-                              } catch (_) {}
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                // Mostrar dirección seleccionada al lado del botón
-                Positioned(
-                  bottom: 80,
-                  left: 16,
-                  right: 16,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF212121).withOpacity(0.95),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    padding: const EdgeInsets.all(10),
-                    child: Text(
-                      selectedAddress ?? 'Cargando dirección...',
-                      style: const TextStyle(
-                        color: Color(0xFFF8D082),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-                // Botón flotante de confirmación
-                if (selectedPosition != null)
-                  Positioned(
-                    bottom: 24,
-                    left: 16,
-                    child: FloatingActionButton.small(
-                      onPressed: () {
-                        Navigator.pop(context, selectedPosition);
-                      },
-                      backgroundColor: const Color(0xFFFF9800),
-                      elevation: 6,
-                      child: const Icon(
-                        Icons.check,
-                        color: Color(0xFF212121),
-                        size: 18,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isInitializing) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return Stack(
+      children: [
+        _buildGoogleMap(),
+        MapSearchBar(
+          searchController: _searchController,
+          onSearchSubmitted: _searchAddress,
+          onLocationPressed: _goToCurrentLocation,
+        ),
+        AddressDisplay(address: selectedAddress, isLoading: _isLoadingAddress),
+        ConfirmLocationButton(
+          visible: true,
+          onPressed: () => Navigator.pop(context, selectedPosition),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildGoogleMap() {
+    return GoogleMap(
+      initialCameraPosition: CameraPosition(target: selectedPosition, zoom: 15),
+      markers: {
+        Marker(
+          markerId: const MarkerId('selected'),
+          position: selectedPosition,
+          draggable: true,
+          onDragEnd: (pos) {
+            _setPosition(pos);
+          },
+        ),
+      },
+      onTap: (pos) => _setPosition(pos),
+      onMapCreated: (controller) => _mapController = controller,
     );
   }
 }
